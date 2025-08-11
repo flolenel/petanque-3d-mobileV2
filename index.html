@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Pétanque 3D – V4.0 (Solo vs Bot & 2 joueurs)</title>
+  <title>Pétanque 3D – V4.1 (Solo vs Bot & 2 joueurs)</title>
   <style>
     /* Palette "été" */
     :root{
@@ -125,10 +125,22 @@
       <div id="modeOverlay" class="overlay" style="display:flex">
         <div class="card">
           <h2>Choisissez votre mode</h2>
-          <p>V4.0 — Solo vs Bot (difficulté moyenne) ou 2 joueurs</p>
+          <p>V4.1 — Solo vs Bot ou 2 joueurs</p>
           <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
             <button id="btnSolo" class="btn-pill">🎮 Jeu solo (vs bot)</button>
             <button id="btnPvp" class="btn-pill btn-alt">👥 2 joueurs</button>
+          </div>
+        </div>
+      </div>
+      <!-- Overlay DIFFICULTÉ (après Solo) -->
+      <div id="diffOverlay" class="overlay" style="display:none">
+        <div class="card">
+          <h2>Choisissez la difficulté</h2>
+          <p>Le bot garde le même timing, seule sa précision change.</p>
+          <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+            <button id="btnEasy" class="btn-pill btn-alt">🙂 Facile</button>
+            <button id="btnMedium" class="btn-pill">😎 Moyen</button>
+            <button id="btnHard" class="btn-pill">🔥 Difficile</button>
           </div>
         </div>
       </div>
@@ -283,11 +295,15 @@
     const endMsg=document.getElementById('endMsg');
     const btnNewEnd=document.getElementById('btnNewEnd');
     const modeOverlay=document.getElementById('modeOverlay');
+    const diffOverlay=document.getElementById('diffOverlay');
     const btnSolo=document.getElementById('btnSolo');
     const btnPvp=document.getElementById('btnPvp');
+    const btnEasy=document.getElementById('btnEasy');
+    const btnMedium=document.getElementById('btnMedium');
+    const btnHard=document.getElementById('btnHard');
 
     // État
-    const state={ p1Score:0, p2Score:0, mene:1, ballsLeftP1:BALLS_PER_PLAYER, ballsLeftP2:BALLS_PER_PLAYER, currentPlayer: Math.random()<.5?1:2, phase:'aim', dirT:0, powT:0, lockedYaw:0, power:0.6, activeBall:null, ended:false, meneDead:false, starter:1, throwTimer:0, vsBot:false };
+    const state={ p1Score:0, p2Score:0, mene:1, ballsLeftP1:BALLS_PER_PLAYER, ballsLeftP2:BALLS_PER_PLAYER, currentPlayer: Math.random()<.5?1:2, phase:'aim', dirT:0, powT:0, lockedYaw:0, power:0.6, activeBall:null, ended:false, meneDead:false, starter:1, throwTimer:0, vsBot:false, botDiff:'medium' };
     state.starter=state.currentPlayer;
 
     function highlightCurrent(){ elScoreP1.classList.toggle('active', state.currentPlayer===1); elScoreP2.classList.toggle('active', state.currentPlayer===2); }
@@ -369,9 +385,16 @@
     function hideEndOverlay(){ endOverlay.style.display='none'; }
     btnNewEnd.addEventListener('click', ()=>{ hideEndOverlay(); resetMatch(); if(state.vsBot && state.currentPlayer===2){ setTimeout(botPlay, 500); } });
 
-    // Choix de mode au démarrage
-    btnSolo.addEventListener('click', ()=>{ state.vsBot=true; modeOverlay.style.display='none'; if(state.currentPlayer===2){ setTimeout(botPlay, 500); } });
+    // ====== Sélection de mode & difficulté ======
+    function setBotDifficulty(diff){ state.botDiff = (diff==='easy'||diff==='hard')?diff:'medium'; }
+    function botNoise(){ const scale = state.botDiff==='easy'?2 : state.botDiff==='hard'?0.5 : 1; return { yawStd: 0.08*MAX_YAW*scale, powerStd: 0.035*scale, aimStd: 0.035*scale }; }
+
+    btnSolo.addEventListener('click', ()=>{ state.vsBot=true; setBotDifficulty('medium'); modeOverlay.style.display='none'; diffOverlay.style.display='flex'; });
     btnPvp.addEventListener('click', ()=>{ state.vsBot=false; modeOverlay.style.display='none'; });
+
+    btnEasy.addEventListener('click', ()=>{ setBotDifficulty('easy'); diffOverlay.style.display='none'; if(state.currentPlayer===2){ setTimeout(botPlay, 500); } });
+    btnMedium.addEventListener('click', ()=>{ setBotDifficulty('medium'); diffOverlay.style.display='none'; if(state.currentPlayer===2){ setTimeout(botPlay, 500); } });
+    btnHard.addEventListener('click', ()=>{ setBotDifficulty('hard'); diffOverlay.style.display='none'; if(state.currentPlayer===2){ setTimeout(botPlay, 500); } });
 
     function canPlayerThrow(p){ return p===1? state.ballsLeftP1>0 : state.ballsLeftP2>0; }
     function decBall(p){ if(p===1) state.ballsLeftP1--; else state.ballsLeftP2--; }
@@ -399,7 +422,7 @@
     // ====== Minimap ======
     function drawMinimap(){ const Wm=elMinimap.width,Hm=elMinimap.height; const mctx=elMinimap.getContext('2d'); mctx.clearRect(0,0,Wm,Hm); const grad=mctx.createLinearGradient(0,0,0,Hm); grad.addColorStop(0,'#e9fbff'); grad.addColorStop(1,'#fff1d1'); mctx.fillStyle=grad; mctx.fillRect(0,0,Wm,Hm); mctx.strokeStyle='rgba(0,0,0,.15)'; mctx.lineWidth=2; mctx.strokeRect(1,1,Wm-2,Hm-2); if(!jack||!finite3(jack.pos)){ distList.innerHTML=''; return; } const scale=1.5*(Wm-20)/Math.max(COURT_W, COURT_L*0.6); const cx=Wm/2, cy=Hm/2; const proj=(x,z)=>[cx+(x-jack.pos.x)*scale, cy+(z-jack.pos.z)*scale]; mctx.strokeStyle='rgba(0,0,0,.2)'; mctx.lineWidth=1; const rp1=proj(-COURT_W/2,-COURT_L/2), rp2=proj(COURT_W/2,COURT_L/2); mctx.strokeRect(Math.min(rp1[0],rp2[0]), Math.min(rp1[1],rp2[1]), Math.abs(rp2[0]-rp1[0]), Math.abs(rp2[1]-rp1[1])); const j=proj(jack.pos.x,jack.pos.z); mctx.fillStyle='#ff3bd4'; mctx.beginPath(); mctx.arc(j[0],j[1],5,0,Math.PI*2); mctx.fill(); const list=[]; for(const b of balls){ if(!b.alive||b.owner==='JACK'||!finite3(b.pos)) continue; const c=proj(b.pos.x,b.pos.z); mctx.fillStyle=(b.owner===1)?'#cfcfcf':'#666666'; mctx.beginPath(); mctx.arc(c[0],c[1],6,0,Math.PI*2); mctx.fill(); const dx=b.pos.x-jack.pos.x, dz=b.pos.z-jack.pos.z; const d=Math.sqrt(dx*dx+dz*dz); list.push({owner:b.owner, d:finite(d)?d:Infinity}); } list.sort((a,b)=>a.d-b.d); distList.innerHTML=list.map((e,i)=>`<li>${i+1}. J${e.owner} — ${Number.isFinite(e.d)? e.d.toFixed(2)+' m' : '—'}</li>`).join(''); }
 
-    // ====== BOT (difficulté moyenne, ajusté) ======
+    // ====== BOT (difficulté avec précision variable) ======
     const OMEGA_DIR=2.5, OMEGA_POW=2.2; // vitesses des jauges (rad/s)
     function phaseDelta(current, target){ const twoPi=Math.PI*2; let d=(target-current)%twoPi; if(d<0) d+=twoPi; return d; }
     function delayForSin(currentPhase, sTarget, omega){ sTarget=clamp(sTarget,-1,1); const a=Math.asin(sTarget); const b=Math.PI - a; const d1=phaseDelta(currentPhase, a); const d2=phaseDelta(currentPhase, b); return Math.min(d1,d2)/omega; }
@@ -432,23 +455,20 @@
       if(mode==='shoot' && opp){
         targetX = opp.pos.x; targetZ = opp.pos.z;
         const dh=Math.hypot(targetX-0, targetZ-ORIGIN_Z);
-        // Tir un peu moins puissant pour éviter les sorties
         basePower=clamp(0.70 + 0.18*(dh/12), 0.68, 0.90);
       } else {
         // Pointer : viser un peu avant le cochonnet et éviter l'axe surchargé
         const ahead = -0.15; targetZ += ahead;
         let side = 0; for(const b of balls){ if(b.alive && b.owner!=='JACK'){ side += Math.sign(b.pos.x - jack.pos.x); } }
         const bias = clamp(-side*0.02, -0.08, 0.08);
-        targetX += bias + randn(0, 0.035);
+        const { aimStd } = botNoise();
+        targetX += bias + randn(0, aimStd);
         const dh=Math.hypot(targetX-0, targetZ-ORIGIN_Z);
-        // Courbe de puissance plus sobre
         basePower = clamp(0.34 + 0.40*(dh/12), 0.34, 0.90);
-        // Affinage par estimation de portée pour éviter l'overshoot
         let pAdj = basePower;
         for(let k=0;k<2;k++){
           const R = estimateRangeForPower(pAdj);
           const ratio = dh / Math.max(0.5, R);
-          // si R > dh -> ratio < 1 → réduire; si R << dh -> n'augmente que légèrement
           const gain = ratio<1 ? clamp(0.85*ratio, 0.70, 0.98) : clamp(0.97*ratio, 0.97, 1.03);
           pAdj = clamp(pAdj*gain, POWER_MIN, 0.92);
         }
@@ -458,11 +478,22 @@
       return { yaw: desiredYaw, power: basePower };
     }
 
-    function botPlay(){ if(!state.vsBot) return; if(state.currentPlayer!==2) return; if(state.phase!=='aim') return; if(!canPlayerThrow(2)) return; const plan=botPlan(); const think=300+Math.random()*400; setTimeout(()=>{
+    function botPlay(){
+      if(!state.vsBot) return; if(state.currentPlayer!==2) return; if(state.phase!=='aim') return; if(!canPlayerThrow(2)) return;
+      const plan=botPlan(); const think=300+Math.random()*400; const { yawStd, powerStd } = botNoise();
+      setTimeout(()=>{
         if(state.currentPlayer!==2 || state.phase!=='aim') return;
-        const yawTarget = clamp(plan.yaw + randn(0, 0.08*MAX_YAW), -MAX_YAW, MAX_YAW);
+        const yawTarget = clamp(plan.yaw + randn(0, yawStd), -MAX_YAW, MAX_YAW);
         const sDir = -yawTarget / MAX_YAW; const delayDir = delayForSin(state.dirT, sDir, OMEGA_DIR);
-        setTimeout(()=>{ if(state.currentPlayer!==2 || state.phase!=='aim') return; onActionPress(true); setTimeout(()=>{ if(state.currentPlayer!==2 || state.phase!=='power') return; const pDesired = clamp(plan.power + randn(0,0.035), POWER_MIN, POWER_MAX); const tnorm = (pDesired-POWER_MIN)/(POWER_MAX-POWER_MIN); const sPow = 2*tnorm - 1; const delayPow = delayForSin(state.powT, sPow, OMEGA_POW); setTimeout(()=>{ if(state.currentPlayer===2 && state.phase==='power'){ onActionPress(true); } }, Math.max(0, delayPow*1000)); }, 60); }, Math.max(0, delayDir*1000));
+        setTimeout(()=>{
+          if(state.currentPlayer!==2 || state.phase!=='aim') return; onActionPress(true);
+          setTimeout(()=>{
+            if(state.currentPlayer!==2 || state.phase!=='power') return;
+            const pDesired = clamp(plan.power + randn(0,powerStd), POWER_MIN, POWER_MAX);
+            const tnorm = (pDesired-POWER_MIN)/(POWER_MAX-POWER_MIN); const sPow = 2*tnorm - 1; const delayPow = delayForSin(state.powT, sPow, OMEGA_POW);
+            setTimeout(()=>{ if(state.currentPlayer===2 && state.phase==='power'){ onActionPress(true); } }, Math.max(0, delayPow*1000));
+          }, 60);
+        }, Math.max(0, delayDir*1000));
       }, think);
     }
 
@@ -486,25 +517,26 @@
         const mapBtn = document.getElementById('btnMap');
         console.assert(getComputedStyle(mapBtn).display!=='none','Bouton minimap visible');
         console.assert(document.getElementById('modeOverlay'),'Overlay de choix de mode présent');
+        console.assert(document.getElementById('diffOverlay'),'Overlay de difficulté présent');
+
         // Tests : blocage des commandes quand le bot joue
-        const save={vsBot:state.vsBot, currentPlayer:state.currentPlayer, phase:state.phase, dirT:state.dirT};
+        const save={vsBot:state.vsBot, currentPlayer:state.currentPlayer, phase:state.phase, dirT:state.dirT, botDiff:state.botDiff};
         state.vsBot=true; state.currentPlayer=2; state.phase='aim'; updateActionButton();
         console.assert(btnAction.disabled,'Bouton désactivé pendant le tour du bot');
         const phaseBefore=state.phase; onActionPress(false); // tentative humaine
         console.assert(state.phase===phaseBefore,'Appui humain ignoré');
         onActionPress(true); // appui bot
         console.assert(state.phase==='power','Appui bot accepté (passage à power)');
-        Object.assign(state, save); updateActionButton();
 
-        // Tests additionnels : la puissance du bot reste bornée et raisonnable en pointage
-        const jackZ0 = jack.pos.z; jack.pos.z = ORIGIN_Z + 10; // jack à ~10 m
-        const plan = (typeof botPlan==='function') ? botPlan() : {power: NaN, yaw: NaN};
-        console.assert(Number.isFinite(plan.power) && plan.power <= 0.95 && plan.power >= POWER_MIN,'Bot power bornée');
-        function estR(p){ const elev = ELEV_MIN + (ELEV_MAX - ELEV_MIN)*Math.sqrt(p); const v0 = SPEED_BASE * p * POWER_SCALE; return (v0*v0*Math.sin(2*elev))/Math.abs(GRAVITY); }
-        const dh = Math.hypot(0 - 0, jack.pos.z + (-0.15) - ORIGIN_Z);
-        const R = estR(plan.power);
-        console.assert(R < dh*1.6, 'Puissance calibrée pour éviter les sorties (R<' + (dh*1.6).toFixed(2) + 'm)');
-        jack.pos.z = jackZ0;
+        // Tests de difficulté : bruit relatif
+        setBotDifficulty('medium'); const nm=botNoise();
+        setBotDifficulty('hard');   const nh=botNoise();
+        setBotDifficulty('easy');   const ne=botNoise();
+        console.assert(Math.abs(nh.yawStd*2 - nm.yawStd) < 1e-6, 'Hard = 1/2 yawStd vs Medium');
+        console.assert(Math.abs(ne.yawStd/2 - nm.yawStd) < 1e-6, 'Easy = 2× yawStd vs Medium');
+        console.assert(Math.abs(nh.powerStd*2 - nm.powerStd) < 1e-6, 'Hard = 1/2 powerStd vs Medium');
+        console.assert(Math.abs(ne.powerStd/2 - nm.powerStd) < 1e-6, 'Easy = 2× powerStd vs Medium');
+        Object.assign(state, save); updateActionButton();
       },0);
     })();
 
